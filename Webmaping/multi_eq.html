@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <title>震度分布図</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <div id="map"></div>
+    <script>
+
+var map = L.map('map').setView([36.575, 137.984], 6);
+L.control.scale({ maxWidth: 150, position: 'bottomright', imperial: false }).addTo(map);
+map.zoomControl.setPosition('topright');
+
+var PolygonLayer_Style_nerv = {
+    "color": "#ffffff",
+    "weight": 1.5,
+    "opacity": 1,
+    "fillColor": "#3a3a3a",
+    "fillOpacity": 1
+}
+
+$.getJSON("prefectures.geojson", function (data) {
+    L.geoJson(data, {
+        style: PolygonLayer_Style_nerv
+    }).addTo(map);
+});
+
+$.getJSON("https://api.p2pquake.net/v2/history?codes=551", function (data) {
+    console.log(data);
+
+    // アイコンの設定はループの外で一度だけ行います
+    var shingenIconImage = L.icon({
+        iconUrl: './shingen.png',
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+        popupAnchor: [0, -40]
+    });
+
+    // 取得したデータ全てに対して繰り返し処理を行います
+    // data.reverse(); // 必要であれば、古い順に描画（新しいものが上にくる）するためにコメントアウトを外してください
+    
+    data.forEach(function(report) {
+        // 震源情報へのショートカット
+        var earthquake = report.earthquake;
+        var hypocenter = earthquake.hypocenter;
+
+        // 座標が存在しない場合（-1など）はスキップします
+        if (hypocenter.latitude === -1 || hypocenter.longitude === -1) {
+            return;
+        }
+
+        // 変数定義（data[0] を report または earthquake 変数に置き換え）
+        let maxInt_data = earthquake.maxScale;
+        var maxIntText = maxInt_data == 10 ? "1" : maxInt_data == 20 ? "2" : maxInt_data == 30 ? "3" : maxInt_data == 40 ? "4" :
+                         maxInt_data == 45 ? "5弱" : maxInt_data == 46 ? "5弱" : maxInt_data == 50 ? "5強" : maxInt_data == 55 ? "6弱" :
+                         maxInt_data == 60 ? "6強" : maxInt_data == 70 ? "7" : "不明";
+        
+        var Magnitude = hypocenter.magnitude != -1 ?
+                        (hypocenter.magnitude).toFixed(1) : 'ー.ー';
+        var Name = hypocenter.name != "" ?
+                   hypocenter.name : '情報なし';
+        var Depth = hypocenter.depth != -1 ?
+                    "約" + hypocenter.depth + "km" : '不明';
+        var tsunamiText = earthquake.domesticTsunami == "None" ? "なし" :
+                          earthquake.domesticTsunami == "Unknown" ? "不明" :
+                          earthquake.domesticTsunami == "Checking" ? "調査中" :
+                          earthquake.domesticTsunami == "NonEffective" ? "若干の海面変動" :
+                          earthquake.domesticTsunami == "Watch" ? "津波注意報" :
+                          earthquake.domesticTsunami == "Warning" ? "津波警報" : "情報なし";
+        var Time = earthquake.time;
+        var IssueTime = report.issue.time;
+        var Source = report.issue.source;
+
+        // マーカーの作成
+        var shingenLatLng = new L.LatLng(hypocenter.latitude, hypocenter.longitude);
+        
+        var shingenIcon = L.marker(shingenLatLng, { icon: shingenIconImage }).addTo(map);
+
+        // ポップアップの設定
+        var popupContent = '発生時刻：' + Time + '<br>最大震度：' + maxIntText + 
+                           '<br>震源地：' + Name + '<span style=\"font-size: 85%;\"> (' + hypocenter.latitude + ", " + hypocenter.longitude + ')</span>' +
+                           '<br>規模：M' + Magnitude + '　深さ：' + Depth + 
+                           '<br>受信：' + IssueTime + ', ' + Source;
+
+        shingenIcon.bindPopup(popupContent, {closeButton: false, maxWidth: 300});
+        
+        // イベント設定
+        shingenIcon.on('mouseover', function (e) { this.openPopup(); });
+        shingenIcon.on('mouseout', function (e) { this.closePopup(); });
+        
+        // (オプション) 最新の地震（ループの最初）だけ自動でポップアップを開く場合
+        // if (report === data[0]) { shingenIcon.openPopup(); }
+    });
+});
+
+
+    </script>
+</body>
+</html>

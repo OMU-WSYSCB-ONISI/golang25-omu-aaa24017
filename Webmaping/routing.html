@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <title>OSRM routing</title>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css" 
+   integrity="sha512-hoalWLoI8r4UszCkZ5kL8vayOGVae1oxXe/2A4AO6J9+580uKHDO3JdHb7NzwwzK5xr/Fs0W40kiNHxM9vyTtQ=="
+   crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js"
+   integrity="sha512-BB3hKbKWOc9Ez/TAwyWxNXeoV9c1v6FIeYiBieIWkpLjauysF18NzgR1MBNBXf8/KABdlkX68nAhlwcDFLGPCQ=="
+   crossorigin=""></script>
+</head>
+<body>
+  <!-- 地図エリア -->
+  <div id="map" style="height:600px"></div>
+  <!-- ボタン表示エリア -->
+  <input type="button" value="出発地点を選択" onclick="selectionMode='startPoint';" /><input id="startPoint" value="" />
+  <br/>
+  <input type="button" value="目的地を選択　" onclick="selectionMode='destination';" /><input id="destination" value="" />
+  <br/>
+  <input type="button" value="　ルート検索　" onclick="startRouteSearch()" />
+  <script>
+    
+    //アイコンの選択モード指定用
+    var selectionMode;    //クリック地点が出発地点か目的地かを区別するために使う
+    
+    //アイコンとルートは、後で消せるように、グルーバル変数に持っておく
+    var startMarker;     //出発地アイコン
+    var destinationMarker;   //目的地アイコン
+    var routeLayer;     //ルート
+    
+    
+    //初期地図表示
+    let map = L.map('map').setView([34.565865, 135.506274], 13);
+    
+    //OSMレイヤーの追加
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+    
+    //地図をクリックしたときに行う処理の登録
+    map.on('click', function (e) {
+        var latlng = e.latlng; //クリック位置の取得
+        if (selectionMode == 'startPoint') {
+            //出発点アイコンを追加
+            if (startMarker != null) {
+              startMarker.remove(); //既に出発点アイコンが在るときは、一旦削除する
+            }
+            startMarker = L.marker([latlng.lat, latlng.lng]).addTo(map);
+            startMarker.bindPopup("出発地点").openPopup();
+            //座標(経度,緯度の順）のセット
+            document.getElementById("startPoint").value = latlng.lng.toFixed(6) + "," + latlng.lat.toFixed(6);
+        } else if (selectionMode == 'destination') {
+            //目的地アイコンを追加
+            if (destinationMarker != null) {
+              destinationMarker.remove(); //既に目的地アイコン在るときは、一旦削除する
+            }
+            destinationMarker = L.marker([latlng.lat, latlng.lng]).addTo(map);
+            destinationMarker.bindPopup("目的地").openPopup();
+            //座標(経度,緯度の順）のセット
+            document.getElementById("destination").value = latlng.lng.toFixed(6) + "," + latlng.lat.toFixed(6);
+        } else {
+            //何もしない
+        }
+    });
+    
+    
+    //ルートを取得して表示する非同期関数
+    async function addRouteLayer(url) {
+        if (routeLayer != null) {
+            routeLayer.remove();
+        }
+        const response = await fetch(url);
+        const json = await response.json();
+        routeLayer = L.geoJSON(json['routes'][0]['geometry'],{
+                    "color": "#FF00FF",
+                    "weight": 6,
+                    "opacity": 0.65
+                });
+        routeLayer.addTo(map);
+
+        // 地図をルートに合うように調整
+        const bounds = routeLayer.getBounds();
+        map.fitBounds(bounds); 
+    }
+    
+    
+    //ルート検索を実行する関数
+    function startRouteSearch() {
+        var startPointCood = document.getElementById("startPoint").value;
+        var destinationCood = document.getElementById("destination").value;
+        var url = 'https://routing.openstreetmap.de/routed-car/route/v1/driving/' + startPointCood + ';' + destinationCood + '?geometries=geojson&overview=full';
+        addRouteLayer(url);
+    }
+  </script>
+</body>
+</html>
